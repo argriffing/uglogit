@@ -62,6 +62,11 @@ def main():
             for v in row:
                 fout_respond.write(struct.pack(fmt, float(v)))
 
+    # Report a few numbers.
+    print len(y.values), 'observations'
+    print x.values.shape[1], 'predictors including the intercept'
+    print len(label_to_index), 'categories including the reference category'
+
 
 if __name__ == '__main__':
     main()
