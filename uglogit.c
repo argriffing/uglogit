@@ -136,9 +136,12 @@ static lbfgsfloatval_t evaluate(
     }
 
     // Adjust g for the observed response.
-    for (i_predict=0; i_predict<NPREDICT; ++i_predict)
+    if (respond != NCATS-1)
     {
-      g[respond * NCATS + i_predict] -= predict[i_predict];
+      for (i_predict=0; i_predict<NPREDICT; ++i_predict)
+      {
+        g[respond * NPREDICT + i_predict] -= predict[i_predict];
+      }
     }
 
   }
