@@ -13,5 +13,5 @@ $ od --format=d4 --width=4 --output-duplicates iris.respond
 ```
 how to build:
 
-$ gcc -o ulogit uglogit.c <path-to>/lbfgs.o -I<path-to>/liblbfgs/include -lm
+$ gcc -o uglogit uglogit.c <path-to>/lbfgs.o -I<path-to>/liblbfgs/include -lm
 ```
