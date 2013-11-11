@@ -214,14 +214,20 @@ static lbfgsfloatval_t evaluate(
   int i_obs, i_cat, i_predict;
 
   // Allocate cuda memory.
-  double *d_cat_exps, *d_params, *d_predict;
+  double *d_cat_exps, *d_params, *d_predict_all;
   cudaMalloc((void **) &d_cat_exps, t->ncats * sizeof(double));
   cudaMalloc((void **) &d_params, t->nparams * sizeof(double));
-  cudaMalloc((void **) &d_predict, t->npredict * sizeof(double));
+  cudaMalloc((void **) &d_predict_all, t->nobs * t->npredict * sizeof(double));
 
   // Copy all parameter values into the device memory.
   cudaMemcpy(d_params, x,
       t->nparams * sizeof(double), cudaMemcpyHostToDevice);
+
+  // TODO be more clever about this.
+  // Possibly copy not all of the data at once,
+  // but also not only one row of data at a time.
+  cudaMemcpy(d_predict_all, t->predict,
+      t->nobs * t->npredict * sizeof(double), cudaMemcpyHostToDevice);
 
   // Allocate host memory.
   double *cat_exps = (double *) malloc(t->ncats * sizeof(double));
@@ -234,16 +240,18 @@ static lbfgsfloatval_t evaluate(
     if ((i_obs+1) % 100000 == 0)
     {
       printf("row %d of %d\n", i_obs+1, t->nobs);
+      fflush(stdout);
     }
 
     // Define the predictors and response for this observation.
     double *predict = t->predict + i_obs * t->npredict;
+    double *d_predict = d_predict_all + i_obs * t->npredict;
     int respond = t->respond[i_obs];
 
     // TODO this is very inefficient to do inside this loop.
     // Copy the prediction array into the device memory.
-    cudaMemcpy(d_predict, predict,
-        t->npredict * sizeof(double), cudaMemcpyHostToDevice);
+    //cudaMemcpy(d_predict, predict,
+        //t->npredict * sizeof(double), cudaMemcpyHostToDevice);
 
     // TODO remove this is the non-cuda code chunk.
     // Compute an exp of a dot product for each non-last category.
@@ -307,12 +315,13 @@ static lbfgsfloatval_t evaluate(
     //printf("%f\n", g[i]);
   //}
   printf("fx to be returned from evaluation function: %f\n", fx);
+  fflush(stdout);
 
   free(cat_exps);
 
   cudaFree(d_cat_exps);
   cudaFree(d_params);
-  cudaFree(d_predict);
+  cudaFree(d_predict_all);
 
   return fx;
 }
@@ -337,6 +346,8 @@ static int progress(
     printf("  fx = %f\n", fx);
     printf("  xnorm = %f, gnorm = %f, step = %f\n", xnorm, gnorm, step);
     printf("\n");
+    fflush(stdout);
+
     return 0;
 }
 
@@ -347,13 +358,15 @@ int main(int argc, char *argv[])
   int n = -1; // number of observations
   int d = -1; // number of categories including the reference category
   int k = -1; // number of predictors including the intercept
+  int m = -1; // max number of memories (default is six)
+  int max_iterations = -1; // max number of iterations (default is infinite)
   char *p_opt = 0; // predictor filename
   char *r_opt = 0; // response filename
   int verbose = 0; // verbosity
 
   // Read the command line arguments.
   int c;
-  while ( (c = getopt(argc, argv, "vn:d:k:p:r:")) != -1)
+  while ( (c = getopt(argc, argv, "vn:d:k:m:i:p:r:")) != -1)
   {
     int this_option_optind = optind ? optind : 1;
     switch (c)
@@ -369,6 +382,12 @@ int main(int argc, char *argv[])
         break;
       case 'k':
         k = atoi(optarg);
+        break;
+      case 'm':
+        m = atoi(optarg);
+        break;
+      case 'i':
+        max_iterations = atoi(optarg);
         break;
       case 'p':
         p_opt = optarg;
@@ -414,11 +433,11 @@ int main(int argc, char *argv[])
   if (verbose)
   {
     printf("allocate lbfgs memory...\n");
+    fflush(stdout);
   }
   int i, ret = 0;
   lbfgsfloatval_t fx;
   lbfgsfloatval_t *x = lbfgs_malloc(t.nparams);
-  lbfgs_parameter_t param;
 
   if (x == NULL) {
     printf("failed to allocate a memory block for variables\n");
@@ -429,6 +448,7 @@ int main(int argc, char *argv[])
   if (verbose)
   {
     printf("initialize parameter values to zero...\n");
+    fflush(stdout);
   }
   for (i=0; i<t.nparams; ++i)
   {
@@ -439,8 +459,18 @@ int main(int argc, char *argv[])
   if (verbose)
   {
     printf("initialize parameters for L-BFGS optimization...\n");
+    fflush(stdout);
   }
+  lbfgs_parameter_t param;
   lbfgs_parameter_init(&param);
+  if (m > 0)
+  {
+    param.m = m;
+  }
+  if (max_iterations > 0)
+  {
+    param.max_iterations = max_iterations;
+  }
   /*param.linesearch = LBFGS_LINESEARCH_BACKTRACKING;*/
 
   /*
@@ -450,6 +480,7 @@ int main(int argc, char *argv[])
   if (verbose)
   {
     printf("starting L-BFGS loop\n");
+    fflush(stdout);
   }
   ret = lbfgs(t.nparams, x, &fx, evaluate, progress, &t, &param);
 
