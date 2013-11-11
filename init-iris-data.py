@@ -50,17 +50,18 @@ def main():
     label_to_index = dict((x, i) for i, x in enumerate(index_to_label))
 
     # Write the binary file that has the prediction data.
-    with open('iris.predict', 'wb') as fout_predict:
-        fmt = 'i'
-        for label in y.values:
-            idx = label_to_index[label]
-            fout_predict.write(struct.pack(fmt, idx))
-
-    with open('iris.respond', 'wb') as fout_respond:
+    with open('iris.predict', 'wb') as fout_respond:
         fmt = 'd'
         for row in x.values:
             for v in row:
                 fout_respond.write(struct.pack(fmt, float(v)))
+
+    # Write the binary file that has the response data.
+    with open('iris.respond', 'wb') as fout_predict:
+        fmt = 'i'
+        for label in y.values:
+            idx = label_to_index[label]
+            fout_predict.write(struct.pack(fmt, idx))
 
     # Report a few numbers.
     print len(y.values), 'observations'
